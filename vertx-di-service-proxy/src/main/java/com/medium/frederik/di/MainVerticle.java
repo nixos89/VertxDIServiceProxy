@@ -2,23 +2,28 @@ package com.medium.frederik.di;
 
 import java.util.UUID;
 
-//import com.medium.frederik.di.foo.reactivex.FooRepository; // TODO: make it work -> generate IT (somehow) !!!
+import com.medium.frederik.di.foo.FooVerticle;
+import com.medium.frederik.di.foo.reactivex.FooRepository;
 
+import io.reactivex.Single;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.reactivex.core.AbstractVerticle;
+import io.vertx.serviceproxy.ServiceProxyBuilder;
 
 public class MainVerticle extends AbstractVerticle {
 
-	private com.medium.frederik.di.foo.FooRepository fooRepository;
+	private FooRepository fooRepository;
 
 	@Override
 	public void init(Vertx vertx, Context context) {
 		super.init(vertx, context);
-//		fooRepository = new Foo
-		
+		fooRepository = new FooRepository(new ServiceProxyBuilder(vertx)
+				.setAddress(FooVerticle.FOO_SERVICE_ADDRESS)
+				.build(com.medium.frederik.di.foo.FooRepository.class)
+				);		
 	}
 
 	@Override
@@ -27,8 +32,17 @@ public class MainVerticle extends AbstractVerticle {
 				.put("id", UUID.randomUUID().toString())
 				.put("bar", "foobar");
 		
-		/* TODO - finish this method code BUT 1st RxJava2 implementation code for FooRepository (CLASS) must be generated !!! */
-//		fooRepository.rxSave(fooData);
+		fooRepository.rxSave(fooData)
+			.doOnSuccess(foo -> System.out.println("Saved: " + foo))
+			.map(foo -> foo.getString("id"))
+			.flatMap(fooRepository::rxFindById)
+			.doOnSuccess(foo -> System.out.println("Found: " + foo))
+			.map(storedFoo -> storedFoo.getString("bar"))
+			.filter(bar -> bar.equals("foobar"))
+			.switchIfEmpty(Single.error(new IllegalStateException("Expecting input bar value.")))
+			.toCompletable()
+			.doOnComplete(() -> System.out.println("Saved and found foo with bar=foobar successfully."))
+			.subscribe(startFuture::complete, startFuture::fail);			
 	}
 
 	

@@ -8,8 +8,9 @@
 	<description>The Vert.X Service Proxies which are separate module of Vert.X toolkit</description>
 
 	<properties>
-		<!-- might to to reconsider switching Vert.X to version 3.8.2 -->
+		<java.version>1.8</java.version>
 		<vertx.version>3.8.2</vertx.version>
+		<lombok.version>1.18.10</lombok.version>
 		<main.verticle>com.medium.frederik.di.LauncherVerticle</main.verticle>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
@@ -41,22 +42,29 @@
 			<artifactId>vertx-rx-java2</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-rx-java2-gen</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
+
 
 		<!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.8</version>
-			<scope>provided</scope>
+			<version>${lombok.version}</version>
+			<!-- <scope>provided</scope> -->
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/io.vertx/vertx-codegen -->
 		<dependency>
 			<groupId>io.vertx</groupId>
 			<artifactId>vertx-codegen</artifactId>
-			<scope>provided</scope> 
+			<scope>provided</scope>
 		</dependency>
-		
+
+		<!-- commented out for testing purposes at 13:57, Jan 7th 2020 -->
 		<dependency>
 			<groupId>io.vertx</groupId>
 			<artifactId>vertx-codegen</artifactId>
@@ -65,10 +73,11 @@
 
 
 		<!-- https://mvnrepository.com/artifact/io.vertx/vertx-service-proxy -->
-		<dependency>
-			<groupId>io.vertx</groupId>
-			<artifactId>vertx-service-proxy</artifactId>
-		</dependency>
+		<!-- commented out for testing purposes at 13:57, Jan 7th 2020 -->
+<!-- 		<dependency> -->
+<!-- 			<groupId>io.vertx</groupId> -->
+<!-- 			<artifactId>vertx-service-proxy</artifactId> -->
+<!-- 		</dependency> -->
 
 		<!-- https://mvnrepository.com/artifact/io.vertx/vertx-service-proxy -->
 		<dependency>
@@ -90,20 +99,61 @@
 						<target>1.8</target>
 						<encoding>${project.build.sourceEncoding}</encoding>
 						<useIncrementalCompilation>false</useIncrementalCompilation>
+
+
 					</configuration>
 					<!-- START::added from here... -->
 					<executions>
 						<execution>
 							<id>default-compile</id>
 							<configuration> <!-- START::...and here -->
+								<!-- CONSIDER adding following tag from https://stackoverflow.com/a/44117227/6805866 -->
 								<annotationProcessors>
 									<annotationProcessor>io.vertx.codegen.CodeGenProcessor</annotationProcessor>
 								</annotationProcessors>
-								<generatedSourcesDirectory>${project.basedir}/src/main/generated</generatedSourcesDirectory>
+								<!-- <generatedSourcesDirectory>${project.basedir}/src/main/generated</generatedSourcesDirectory> -->
 								<compilerArgs>
 									<arg>-AoutputDirectory=${project.basedir}/src/main</arg>
 									<arg>-Acodegen.output=${project.basedir}/src/main</arg>
-								</compilerArgs>
+								</compilerArgs><!-- END -->
+
+								<!-- added by https://github.com/vert-x3/vertx-codegen/issues/179#issuecomment-460972123 
+									...so FROM here -->
+								<source>${java.version}</source>
+								<target>${java.version}</target>
+								<useIncrementalCompilation>false</useIncrementalCompilation>
+								<encoding>${project.build.sourceEncoding}</encoding>
+								<generatedSourcesDirectory>src/main/generated</generatedSourcesDirectory>
+								<generatedTestSourcesDirectory>src/test/generated</generatedTestSourcesDirectory>
+								<annotationProcessorPaths>
+									<dependency>
+										<groupId>io.vertx</groupId>
+										<artifactId>vertx-codegen</artifactId>
+										<version>${vertx.version}</version>
+									</dependency>
+									<dependency>
+										<groupId>io.vertx</groupId>
+										<artifactId>vertx-service-proxy</artifactId>
+										<version>${vertx.version}</version>
+									</dependency>
+									<dependency>
+										<groupId>io.vertx</groupId>
+										<artifactId>vertx-rx-java2</artifactId>
+										<version>${vertx.version}</version>
+									</dependency>
+									<dependency>
+										<groupId>io.vertx</groupId>
+										<artifactId>vertx-rx-java2-gen</artifactId>
+										<version>${vertx.version}</version>
+									</dependency>
+									<dependency>
+										<groupId>org.projectlombok</groupId>
+										<artifactId>lombok</artifactId>
+										<version>${lombok.version}</version>
+									</dependency>
+								</annotationProcessorPaths>
+								<!-- ...TILL here!!! -->
+
 							</configuration>
 						</execution> <!-- ADDED -->
 					</executions><!-- ADDED -->
