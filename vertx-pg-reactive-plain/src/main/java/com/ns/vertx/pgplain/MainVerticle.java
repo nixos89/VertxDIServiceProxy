@@ -24,6 +24,8 @@ import io.vertx.sqlclient.Tuple;
 import static com.ns.vertx.pgplain.ActionHelper.*;
 import static com.ns.vertx.pgplain.DBQueries.*;
 
+import java.util.NoSuchElementException;
+
 public class MainVerticle extends AbstractVerticle {
 
 	private final static Logger LOGGER = LoggerFactory.getLogger(MainVerticle.class);
@@ -33,15 +35,23 @@ public class MainVerticle extends AbstractVerticle {
 	@Override
 	public void start(Promise<Void> startPromise) throws Exception {				
 		Router routerREST = Router.router(vertx);
-		routerREST.post("/*").handler(BodyHandler.create());
+		
 		routerREST.get("/categories").handler(this::getAllCategoriesHandler);
 		routerREST.get("/categories/:id").handler(this::getCategoryByIdHandler);
 		routerREST.delete("/categories/:id").handler(this::deleteCategoryHandler);
 		routerREST.post().handler(BodyHandler.create());
 		routerREST.post("/categories").handler(this::createCategoryHandler);
+		routerREST.put().handler(BodyHandler.create());
 		routerREST.put("/categories/:id").handler(this::updateCategoryHandler);
+		
 		Router routerAPI = Router.router(vertx);
 		routerAPI.mountSubRouter("/api", routerREST);
+		routerAPI.errorHandler(500, error -> {
+			Throwable failure = error.failure();
+			if (failure != null) {
+				failure.printStackTrace();
+			}
+		});
 		
 		ConfigRetriever retriever = ConfigRetriever.create(vertx);		
 		retriever.getConfig(h -> {
@@ -170,7 +180,7 @@ public class MainVerticle extends AbstractVerticle {
 								.put("name", row.getString(1))
 								.put("is_deleted", row.getBoolean(2));
 						
-						LOGGER.info("Succeeded in quering category by id! Result:");
+						LOGGER.info("Succeeded in quering category by id!");
 						rc.response().setStatusCode(200);
 						rc.response().putHeader("Content-Type", "application/json; UTF-8");
 						rc.response().end(category.encodePrettily());
@@ -194,12 +204,20 @@ public class MainVerticle extends AbstractVerticle {
 	
 	private Future<Void> updateCategory(SqlConnection connection, Category category, int id) {
 		Promise<Void> promise = Promise.promise();
-		connection.preparedQuery(UPDATE_CATEGORY_SQL, Tuple.of(category.getName()), update -> {
-			
+		connection.preparedQuery(UPDATE_CATEGORY_SQL, Tuple.of(category.getName(), category.getIsDeleted(), id), update -> {
+			if (update.succeeded()) {
+				Row row = update.result().iterator().next();
+				LOGGER.info("Category id = " + row.getLong(0) + ", name = " + category.getName() 
+								+ ", is_deleted = " + category.getIsDeleted() + " has been updated!");
+				promise.handle(Future.succeededFuture());
+			} else {				
+				promise.handle(Future.failedFuture(update.cause()));
+			}
 		});
 		
 		return promise.future();
 	}
+
 	
 	private void createCategoryHandler(RoutingContext rc) {
 		Category category = rc.getBodyAsJson().mapTo(Category.class);
@@ -222,26 +240,23 @@ public class MainVerticle extends AbstractVerticle {
 	}
 	
 	
+	private Future<Void> deleteCategory(SqlConnection connection, int id) {
+		Promise<Void> promise = Promise.promise();
+		connection.preparedQuery(DBQueries.DELETE_CATEGORY_BY_ID_SQL, Tuple.of(id), fetch -> {
+			if (fetch.succeeded()) {
+				promise.handle(Future.succeededFuture());
+			} else {
+				promise.handle(Future.failedFuture(new NoSuchElementException("No category with id = " + id)));
+			}					
+		});
+		return promise.future();
+	}
+	
+	
 	private void deleteCategoryHandler(RoutingContext rc) {
 		int id = Integer.valueOf(rc.request().getParam("id"));
-		pgClient.getConnection(ar -> {
-			if (ar.succeeded()) {
-				SqlConnection sqlConnection = ar.result();
-				sqlConnection.preparedQuery(DBQueries.DELETE_CATEGORY_BY_ID_SQL, Tuple.of(id), fetch -> {
-					if (fetch.succeeded()) {
-						LOGGER.info("Category with id = " + id + " has been successfully deleted!");
-						rc.response().setStatusCode(204);
-						rc.response().putHeader("Content-type", "application/json: UTF-8");
-						rc.response().end();						
-					} else {
-						LOGGER.error("Error, connection not established! Cause: ", fetch.cause());
-					}					
-				});
-				sqlConnection.close();
-			} else {
-				LOGGER.error("DB connection NOT obtained!", ar.cause());
-			}
-		});
+		connect().compose(connection -> deleteCategory(connection, id))
+				 .setHandler(noContent(rc));
 	}
 	
 }
